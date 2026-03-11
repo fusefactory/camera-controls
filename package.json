@@ -1,6 +1,6 @@
 {
   "name": "camera-controls",
-  "version": "0.0.0-semantic-release",
+  "version": "0.0.1",
   "author": "Yomotsu",
   "license": "MIT",
   "type": "module",
