@@ -2729,10 +2729,15 @@ export class CameraControls extends EventDispatcher {
 				const dollyControlAmount = this._spherical.radius - this._lastDistance;
 
 				const camera = this._camera;
-				const cameraDirection = this._getCameraDirection( _cameraDirection );
-				const planeX = _v3A.copy( cameraDirection ).cross( camera.up ).normalize();
-				if ( planeX.lengthSq() === 0 ) planeX.x = 1.0;
-				const planeY = _v3B.crossVectors( planeX, cameraDirection );
+				const cameraDirection = this._getCameraDirection( _cameraDirection ); // still needed for infinityDolly
+				const sinTheta = Math.sin( this._spherical.theta );
+				const cosTheta = Math.cos( this._spherical.theta );
+				const sinPhi   = Math.sin( this._spherical.phi );
+				const cosPhi   = Math.cos( this._spherical.phi );
+				// camera right in Y-up space: (cosθ, 0, -sinθ) -- no pole degeneracy
+				const planeX = _v3A.set( cosTheta, 0, -sinTheta ).applyQuaternion( this._yAxisUpSpaceInverse );
+				// camera up in Y-up space: (-cosφ*sinθ, sinφ, -cosφ*cosθ)
+				const planeY = _v3B.set( -cosPhi * sinTheta, sinPhi, -cosPhi * cosTheta ).applyQuaternion( this._yAxisUpSpaceInverse );
 				const worldToScreen = this._sphericalEnd.radius * Math.tan( camera.getEffectiveFOV() * DEG2RAD * 0.5 );
 				const prevRadius = this._sphericalEnd.radius - dollyControlAmount;
 				const lerpRatio = ( prevRadius - this._sphericalEnd.radius ) / this._sphericalEnd.radius;
