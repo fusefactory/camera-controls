@@ -395,6 +395,8 @@ export class CameraControls extends EventDispatcher {
 	protected _focalOffset0: _THREE.Vector3;
 
 	protected _dollyControlCoord: _THREE.Vector2;
+	protected _dollyControlCameraTheta = 0;
+	protected _dollyControlCameraPhi = 0;
 	protected _changedDolly = 0;
 	protected _changedZoom = 0;
 
@@ -2729,35 +2731,40 @@ export class CameraControls extends EventDispatcher {
 				const dollyControlAmount = this._spherical.radius - this._lastDistance;
 
 				const camera = this._camera;
-				const cameraDirection = this._getCameraDirection( _cameraDirection );
-				const planeX = _v3A.copy( cameraDirection ).cross( camera.up ).normalize();
-				if ( planeX.lengthSq() === 0 ) planeX.x = 1.0;
-				const planeY = _v3B.crossVectors( planeX, cameraDirection );
 				const worldToScreen = this._sphericalEnd.radius * Math.tan( camera.getEffectiveFOV() * DEG2RAD * 0.5 );
 				const prevRadius = this._sphericalEnd.radius - dollyControlAmount;
 				const lerpRatio = ( prevRadius - this._sphericalEnd.radius ) / this._sphericalEnd.radius;
-				const cursor = _v3C.copy( this._targetEnd )
-					.add( planeX.multiplyScalar( this._dollyControlCoord.x * worldToScreen * camera.aspect ) )
-					.add( planeY.multiplyScalar( this._dollyControlCoord.y * worldToScreen ) );
-				const newTargetEnd = _v3A.copy( this._targetEnd ).lerp( cursor, lerpRatio );
 
-				const isMin = this._lastDollyDirection === DOLLY_DIRECTION.IN && this._spherical.radius <= this.minDistance;
-				const isMax = this._lastDollyDirection === DOLLY_DIRECTION.OUT && this.maxDistance <= this._spherical.radius;
+				// Apply the cursor offset as a focalOffset instead of moving
+				// the orbit target.  This keeps the orbit center anchored so
+				// that boundary clamping and rotation stay predictable.
+				const offsetX =   this._dollyControlCoord.x * worldToScreen * camera.aspect * lerpRatio;
+				const offsetY = - this._dollyControlCoord.y * worldToScreen * lerpRatio;
+				this._focalOffsetEnd.x += offsetX;
+				this._focalOffsetEnd.y += offsetY;
+				this._focalOffset.x    += offsetX;
+				this._focalOffset.y    += offsetY;
 
-				if ( this.infinityDolly && ( isMin || isMax ) ) {
+				if ( this.infinityDolly ) {
 
-					this._sphericalEnd.radius -= dollyControlAmount;
-					this._spherical.radius -= dollyControlAmount;
-					const dollyAmount = _v3B.copy( cameraDirection ).multiplyScalar( - dollyControlAmount );
-					newTargetEnd.add( dollyAmount );
+					const isMin = this._lastDollyDirection === DOLLY_DIRECTION.IN && this._spherical.radius <= this.minDistance;
+					const isMax = this._lastDollyDirection === DOLLY_DIRECTION.OUT && this.maxDistance <= this._spherical.radius;
+
+					if ( isMin || isMax ) {
+
+						this._sphericalEnd.radius -= dollyControlAmount;
+						this._spherical.radius    -= dollyControlAmount;
+
+						// Push camera forward along its local z (into the scene).
+						// Positive z in focalOffset goes along the camera's +z
+						// which points away from the target, so we add
+						// dollyControlAmount (negative when dollying in).
+						this._focalOffsetEnd.z += dollyControlAmount;
+						this._focalOffset.z    += dollyControlAmount;
+
+					}
 
 				}
-
-				// target position may be moved beyond boundary.
-				this._boundary.clampPoint( newTargetEnd, newTargetEnd );
-				const targetEndDiff = _v3B.subVectors( newTargetEnd, this._targetEnd );
-				this._targetEnd.copy( newTargetEnd );
-				this._target.add( targetEndDiff );
 
 				this._changedDolly -= dollyControlAmount;
 				if ( approxZero( this._changedDolly ) ) this._changedDolly = 0;
@@ -3237,6 +3244,8 @@ export class CameraControls extends EventDispatcher {
 
 			this._changedDolly += ( this.infinityDolly ? distance : clampedDistance ) - lastDistance;
 			this._dollyControlCoord.set( x, y );
+			this._dollyControlCameraTheta = this._spherical.theta;
+			this._dollyControlCameraPhi = this._spherical.phi;
 
 		}
 
